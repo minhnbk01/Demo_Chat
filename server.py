@@ -61,11 +61,17 @@ def handle_client(client_socket, address):
                     client_socket.send("[SERVER] Sai cú pháp. Dùng: /msg <username> <nội dung>".encode('utf-8'))
             
             elif message.startswith("/all "):
-                msg_content = message.split(' ', 1)[1]
-                with clients_lock:
-                    for user, sock in clients.items():
-                        if user != username:
-                            sock.send(f"\n[{username}]: {msg_content}".encode('utf-8'))
+                parts = message.split(' ', 1)
+                if len(parts) == 2 and parts[1].strip():
+                    msg_content = parts[1]
+                    with clients_lock:
+                        for user, sock in clients.items():
+                            if user != username:
+                                sock.send(f"\n[{username}]: {msg_content}".encode('utf-8'))
+                else:
+                    client_socket.send("[SERVER] Sai cú pháp. Dùng: /all <nội dung>".encode('utf-8'))
+            else:
+                client_socket.send("[SERVER] Errol!!!".encode('utf-8'))
 
     except Exception as e:
         # Log lỗi nếu có để dễ tìm nguyên nhân
