@@ -53,8 +53,16 @@ def handle_client(client_socket, address):
                     with clients_lock:
                         if target_user in clients:
                             target_socket = clients[target_user]
-                            target_socket.send(f"\n[From {username}]: {msg_content}".encode('utf-8'))
-                            client_socket.send(f"[Sent to {target_user}]: {msg_content}".encode('utf-8'))
+                            try:
+                                target_socket.send(f"\n[From {username}]: {msg_content}".encode('utf-8'))
+                                client_socket.send(f"[Me -> {target_user}]: {msg_content}".encode('utf-8'))
+                            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                                # Nếu target đã ngắt kết nối, đóng socket và loại khỏi danh sách
+                                try:
+                                    target_socket.close()
+                                except Exception:
+                                    pass
+                                del clients[target_user]
                         else:
                             client_socket.send(f"[SERVER] Không tìm thấy '{target_user}'.".encode('utf-8'))
                 else:
@@ -65,18 +73,27 @@ def handle_client(client_socket, address):
                 if len(parts) == 2 and parts[1].strip():
                     msg_content = parts[1]
                     with clients_lock:
-                        for user, sock in clients.items():
+                        for user, sock in list(clients.items()):
                             if user != username:
-                                sock.send(f"\n[{username}]: {msg_content}".encode('utf-8'))
+                                try:
+                                    sock.send(f"\n[{username}]: {msg_content}".encode('utf-8'))
+                                except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                                    # Loại bỏ client đã ngắt kết nối để tránh lỗi 10054
+                                    try:
+                                        sock.close()
+                                    except Exception:
+                                        pass
+                                    del clients[user]
                 else:
                     client_socket.send("[SERVER] Sai cú pháp. Dùng: /all <nội dung>".encode('utf-8'))
             else:
                 client_socket.send("[SERVER] Errol!!!".encode('utf-8'))
 
+    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+        pass
     except Exception as e:
-        # Log lỗi nếu có để dễ tìm nguyên nhân
+        # Log lỗi khác để dễ tìm nguyên nhân
         print(f"[!] Lỗi kết nối với {address}: {e}")
-        
     finally:
         # Khi client ngắt kết nối (bất kể lý do gì)
         if username:
@@ -96,11 +113,18 @@ def start_server():
     server.listen(10) 
     print(f"[*] Server đang chạy tại {HOST}:{PORT}")
 
-    while True:
-        client_socket, address = server.accept()
-        thread = threading.Thread(target=handle_client, args=(client_socket, address))
-        thread.daemon = True # Thread tự đóng khi tắt server
-        thread.start()
+    try:
+        while True:
+            client_socket, address = server.accept()
+            thread = threading.Thread(target=handle_client, args=(client_socket, address))
+            thread.daemon = True # Thread tự đóng khi tắt server
+            thread.start()
+    except KeyboardInterrupt:
+        # Cho phép dừng server bằng Ctrl+C từ terminal
+        print("\n[!] Dừng server ")
+    finally:
+        server.close()
+        print("[*] Server đã dừng.")
 
 if __name__ == "__main__":
     start_server()
