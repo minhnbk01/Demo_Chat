@@ -20,7 +20,8 @@ def handle_client(client_socket, address):
         with clients_lock:
             if username in clients:
                 client_socket.send("ERROR: Username đã tồn tại. Hãy thử lại bằng tên khác.".encode('utf-8'))
-                return # Thoát luồng, chuyển xuống khối finally
+                username = None 
+                return 
             
             # Thêm user vào danh sách nếu tên hợp lệ
             clients[username] = client_socket

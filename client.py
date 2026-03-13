@@ -32,6 +32,9 @@ def start_client():
     # Quá trình Login
     while True:
         username = input("Nhập username để login: ")
+        if not username.strip():
+            print("[!] Username không được để trống!")
+            continue
         client.send(username.encode('utf-8'))
         response = client.recv(1024).decode('utf-8')
         
